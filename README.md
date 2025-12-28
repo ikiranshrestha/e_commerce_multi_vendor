@@ -148,3 +148,21 @@ GET /api/imports/{id}
 * **Invalid Rows:** Skipped and logged; the rest of the import continues.
 * **Database Deadlocks:** Handled via transaction retries in the Repository.
 * **Worker Crashes:** Jobs remain in the queue or are marked as failed for manual restart.
+
+## 11. Collections (Partial Implementation)
+
+⚠️ **Note**: Due to time constraints, the collection management module is only partially implemented. Currently:
+
+* Collections can be created and associated with products.
+
+* CRUD operations for collections exist.
+
+* Product attachment/detachment is functional.
+
+**Limitations**:
+
+* Full validation to ensure products belong to the same merchant is not fully enforced.
+
+* Advanced features such as bulk import into collections, collection-level analytics, or nested collections are not implemented.
+
+* Collection has not be implemented in the UI counterpart.
