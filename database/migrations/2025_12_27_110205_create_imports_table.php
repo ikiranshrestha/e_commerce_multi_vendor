@@ -11,9 +11,14 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('merchant_id')->constrained()->cascadeOnDelete();
             $table->string('file_path');
-            $table->enum('status', ['pending', 'processing', 'completed', 'failed'])->default('pending');
+
+            $table->enum('status', ['pending', 'processing', 'completed', 'failed'])
+                ->default('pending');
+
+            $table->unsignedInteger('total_rows')->default(0);
             $table->unsignedInteger('processed_rows')->default(0);
             $table->unsignedInteger('failed_rows')->default(0);
+
             $table->timestamps();
         });
     }

@@ -1,66 +1,144 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Backend Documentation: Multi-Merchant E-Commerce Platform
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## 1. Overview
+This backend powers a multi-merchant e-commerce platform designed to handle large-scale product catalogs, bulk CSV imports, and high-volume collection operations concurrently.
 
-## About Laravel
+The system prioritizes:
+* **Non-blocking bulk operations**
+* **Data consistency**
+* **Fault tolerance**
+* **Horizontal scalability**
+* **Clean, maintainable architecture**
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## 2. Tech Stack
+* **Framework:** Laravel (API-first)
+* **Database:** MySQL
+* **Queue System:** Laravel Queues (Database driver)
+* **Background Jobs:** Laravel ShouldQueue
+* **Architecture:** Service + Repository pattern
+* **Frontend Communication:** REST APIs with polling
+* **Notifications:** Email (queued)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## 3. High-Level Architecture
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+**Flow:**
+Controller -> Service Layer -> Repository Layer -> Eloquent Models -> Database
 
-## Laravel Sponsors
+**Background Processing:**
+Controller -> Service -> Queue Job -> Repository -> DB
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+**Why this architecture?**
+* Keeps controllers thin
+* Isolates business logic
+* Makes jobs reusable and testable
+* Allows swapping persistence layers if needed
 
-### Premium Partners
+---
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+## 4. Core Domain Models
+* **Merchant:** Represents a seller operating independently.
+* **Product:** Belongs to one merchant; identified by SKU; can belong to multiple collections.
+* **Collection:** Belongs to a merchant; can contain thousands of products.
+* **Import:** Tracks the lifecycle of a bulk product import.
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## 5. Bulk Product Import System
 
-## Code of Conduct
+### Key Requirements Addressed
+- Non-blocking imports
+- Real-time progress updates
+- Partial failure handling
+- Email notification on completion
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### Import Lifecycle
+1. Merchant uploads CSV
+2. Import record is created (status: pending)
+3. Background job is dispatched
+4. Job processes rows incrementally
+5. Progress is tracked in DB
+6. Status updated to completed or failed
+7. Email notification is sent
 
-## Security Vulnerabilities
+### Import Table Structure
+- id
+- merchant_id
+- file_path
+- status (pending | processing | completed | failed)
+- total_rows
+- processed_rows
+- failed_rows
+- timestamps
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+---
 
-## License
+## 6. Background Job Design: ImportProductsJob
+Runs asynchronously using queues and processes CSV row-by-row.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+**Design Decisions:**
+- Import ID passed to job, not full model (queue safety)
+- Repository resolved in job, not constructor
+- Row-level error isolation using transactions
+- Idempotent SKU-based upserts
+
+**Example Tracking Logic:**
+$import->increment('processed_rows');
+$import->increment('failed_rows');
+
+---
+
+## 7. Real-Time Progress Updates (Polling)
+
+| Reason | Explanation |
+| :--- | :--- |
+| **Simplicity** | No socket infra needed |
+| **Scalability** | Works across multiple servers |
+| **Reliability** | Stateless and cache-friendly |
+
+### Progress API
+GET /api/imports/{id}
+
+**Sample Response:**
+{
+  "id": 12,
+  "status": "processing",
+  "processed_rows": 420,
+  "failed_rows": 3,
+  "total_rows": 1000,
+  "progress": 42
+}
+
+---
+
+## 8. Collection Management
+* Collections belong to merchants.
+* Many-to-many relationship with products.
+* Indexed pivot table for fast bulk operations.
+* **Bulk Operations:** Attach/detach products in batches using chunking to avoid memory spikes.
+
+---
+
+## 9. Error Handling Strategy
+* **Invalid CSV row:** Skipped, logged, counted.
+* **Partial import failure:** Import continues.
+* **File missing:** Import marked failed.
+* **DB error:** Row rolled back only.
+* **Worker crash:** Import resumes safely via job retries.
+
+---
+
+## 10. Scaling Strategy
+1. **Queue Workers:** Horizontal scaling with separate queues per workload.
+2. **Database:** Composite indexes (merchant_id, sku) and read replicas.
+3. **Application:** Stateless API servers and chunked DB operations.
+
+---
+
+## 11. Summary
+This backend is a production-ready foundation for large-scale e-commerce operations, emphasizing reliability and clean architecture.

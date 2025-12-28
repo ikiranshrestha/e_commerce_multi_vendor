@@ -26,30 +26,36 @@ class ImportProductsJob implements ShouldQueue
 
     public function handle(): void
     {
-        // Resolve the repository here
         $productRepo = App::make(ProductRepositoryInterface::class);
 
         $this->import->update(['status' => 'processing']);
 
         $filePath = storage_path('app/' . $this->import->file_path);
-        $merchant = $this->import->merchant;
 
         if (!file_exists($filePath)) {
-            $this->import->update(['status' => 'failed']);
-            Log::error("CSV file not found: {$filePath}");
+            $this->failImport('CSV file not found');
             return;
         }
 
         $handle = fopen($filePath, 'r');
         if (!$handle) {
-            $this->import->update(['status' => 'failed']);
-            Log::error("Failed to open CSV: {$filePath}");
+            $this->failImport('Failed to open CSV');
             return;
         }
 
-        $header = null;
-
         try {
+            // Calculate total rows
+            $totalRows = 0;
+            while (fgetcsv($handle, 1000, ',')) {
+                $totalRows++;
+            }
+
+            $this->import->update(['total_rows' => max(0, $totalRows - 1)]);
+            rewind($handle);
+
+            $header = null;
+            $merchant = $this->import->merchant;
+
             while (($row = fgetcsv($handle, 1000, ',')) !== false) {
                 if (!$header) {
                     $header = $row;
@@ -70,24 +76,42 @@ class ImportProductsJob implements ShouldQueue
                             ]
                         );
                     });
+
+                    $this->import->increment('processed_rows');
                 } catch (\Throwable $e) {
+                    $this->import->increment('failed_rows');
+
                     Log::warning('Skipped invalid CSV row', [
-                        'merchant_id' => $merchant->id,
-                        'row' => $row,
+                        'import_id' => $this->import->id,
                         'error' => $e->getMessage(),
                     ]);
                 }
             }
 
             $this->import->update(['status' => 'completed']);
+            SendImportCompletedEmail::dispatch($this->import)
+                ->onQueue('emails');
         } catch (\Throwable $e) {
-            $this->import->update(['status' => 'failed']);
-            Log::error('CSV import failed', [
-                'merchant_id' => $merchant->id,
-                'error' => $e->getMessage(),
-            ]);
+            $this->failImport($e->getMessage());
         } finally {
             fclose($handle);
         }
+    }
+
+    protected function failImport(string $message): void
+    {
+        $this->import->update([
+            'status' => 'failed',
+            'error_message' => $message,
+        ]);
+
+        SendImportCompletedEmail::dispatch($this->import)
+            ->onQueue('emails');
+
+
+        Log::error('Import failed', [
+            'import_id' => $this->import->id,
+            'message' => $message,
+        ]);
     }
 }

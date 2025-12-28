@@ -15,13 +15,17 @@ class ProductService
     {
         $path = $file->store('imports');
 
+        $totalRows = max(0, count(file($file->getRealPath())) - 1);
+
         $import = $this->importRepository->create([
             'merchant_id' => $merchant->id,
             'file_path'   => $path,
             'status'      => 'pending',
+            'total_rows'  => $totalRows,
         ]);
 
-        ImportProductsJob::dispatch($import);
+        ImportProductsJob::dispatch($import)
+            ->onQueue('import');
 
         return $import;
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Import;
 use App\Models\Merchant;
 use App\Services\ProductService;
 use App\Support\ApiResponse;
@@ -24,5 +25,10 @@ class ProductController extends Controller
             'CSV import started',
             202
         );
+    }
+
+    public function show(Import $import)
+    {
+        return ApiResponse::success($import);
     }
 }
