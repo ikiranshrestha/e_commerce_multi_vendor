@@ -7,13 +7,11 @@ use Illuminate\Support\ServiceProvider;
 
 use App\Repositories\Contracts\BaseRepositoryInterface;
 use App\Repositories\BaseRepository;
-use App\Repositories\CommissionRuleRepository;
-use App\Repositories\Contracts\AirportRepositoryInterface;
+use App\Repositories\Contracts\CollectionRepositoryInterface;
 use App\Repositories\Contracts\CommissionRuleRepositoryInterface;
 use App\Repositories\Contracts\ImportRepositoryInterface;
 use App\Repositories\Contracts\ProductRepositoryInterface;
-use App\Repositories\UserRepository;
-use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Repositories\CollectionRepository;
 use App\Repositories\ImportRepository;
 use App\Repositories\ProductRepository;
 
@@ -27,6 +25,7 @@ class RepositoryServiceProvider extends ServiceProvider
         // Specific repositories
         $this->app->bind(ImportRepositoryInterface::class, ImportRepository::class);
         $this->app->bind(ProductRepositoryInterface::class, ProductRepository::class);
+        $this->app->bind(CollectionRepositoryInterface::class, CollectionRepository::class);
     }
 
     public function boot()
