@@ -10,8 +10,12 @@ use App\Repositories\BaseRepository;
 use App\Repositories\CommissionRuleRepository;
 use App\Repositories\Contracts\AirportRepositoryInterface;
 use App\Repositories\Contracts\CommissionRuleRepositoryInterface;
+use App\Repositories\Contracts\ImportRepositoryInterface;
+use App\Repositories\Contracts\ProductRepositoryInterface;
 use App\Repositories\UserRepository;
 use App\Repositories\Contracts\UserRepositoryInterface;
+use App\Repositories\ImportRepository;
+use App\Repositories\ProductRepository;
 
 class RepositoryServiceProvider extends ServiceProvider
 {
@@ -21,9 +25,8 @@ class RepositoryServiceProvider extends ServiceProvider
         $this->app->bind(BaseRepositoryInterface::class, BaseRepository::class);
 
         // Specific repositories
-        $this->app->bind(UserRepositoryInterface::class, UserRepository::class);
-        $this->app->bind(CommissionRuleRepositoryInterface::class, CommissionRuleRepository::class);
-        $this->app->bind(AirportRepositoryInterface::class, AirportRepository::class);
+        $this->app->bind(ImportRepositoryInterface::class, ImportRepository::class);
+        $this->app->bind(ProductRepositoryInterface::class, ProductRepository::class);
     }
 
     public function boot()

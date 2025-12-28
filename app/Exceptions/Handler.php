@@ -53,6 +53,14 @@ class Handler extends ExceptionHandler
             return $api->error('Forbidden', 403);
         }
 
+        if ($request->expectsJson()) {
+            return \App\Support\ApiResponse::exception(
+                $e->getMessage(),
+                config('app.debug') ? $e->getTrace() : null,
+                method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500
+            );
+        }
+
         // Fallback
         if (config('app.debug')) {
             return parent::render($request, $e);
