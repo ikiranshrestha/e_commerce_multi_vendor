@@ -1,9 +1,11 @@
-# Backend Documentation: Multi-Merchant E-Commerce Platform
+# Multi-Merchant E-Commerce Platform Backend
 
-## 1. Overview
 This backend powers a multi-merchant e-commerce platform designed to handle large-scale product catalogs, bulk CSV imports, and high-volume collection operations concurrently.
 
-The system prioritizes:
+---
+
+## 1. Overview
+The system prioritizes performance and reliability through:
 * **Non-blocking bulk operations**
 * **Data consistency**
 * **Fault tolerance**
@@ -15,7 +17,7 @@ The system prioritizes:
 ## 2. Tech Stack
 * **Framework:** Laravel (API-first)
 * **Database:** MySQL
-* **Queue System:** Laravel Queues (Database driver)
+* **Queue System:** Laravel Queues (Redis / Database driver)
 * **Background Jobs:** Laravel ShouldQueue
 * **Architecture:** Service + Repository pattern
 * **Frontend Communication:** REST APIs with polling
@@ -23,83 +25,100 @@ The system prioritizes:
 
 ---
 
-## 3. High-Level Architecture
+## 3. Project Setup
+
+### Requirements
+* PHP >= 8.1
+* Composer
+* MySQL
+
+### Installation Steps
+1. **Clone the repository:**
+   git clone <repo-url>
+   cd <repo-folder>
+
+2. **Install PHP dependencies:**
+   composer install
+
+3. **Configure Environment:**
+   cp .env.example .env
+
+4. **Update .env with your credentials:**
+   - DB_DATABASE=e_commerce_multi_vendor
+   - DB_USERNAME=root
+   - DB_PASSWORD=
+   - MAIL_USERNAME=your_mailtrap_username
+   - MAIL_PASSWORD=your_mailtrap_password
+
+5. **Initialize Application:**
+   php artisan key:generate
+   php artisan migrate
+   php artisan db:seed
+
+6. **Start Background Workers:**
+   php artisan queue:work
+
+7. **Serve Application:**
+   php artisan serve
+
+---
+
+## 4. High-Level Architecture
 
 
 
-**Flow:**
+**Logic Flow:**
 Controller -> Service Layer -> Repository Layer -> Eloquent Models -> Database
 
 **Background Processing:**
 Controller -> Service -> Queue Job -> Repository -> DB
 
 **Why this architecture?**
-* Keeps controllers thin
-* Isolates business logic
-* Makes jobs reusable and testable
-* Allows swapping persistence layers if needed
+* Keeps controllers thin and focused on HTTP.
+* Isolates business logic into reusable Services.
+* Allows swapping persistence layers via Repositories.
 
 ---
 
-## 4. Core Domain Models
-* **Merchant:** Represents a seller operating independently.
-* **Product:** Belongs to one merchant; identified by SKU; can belong to multiple collections.
-* **Collection:** Belongs to a merchant; can contain thousands of products.
-* **Import:** Tracks the lifecycle of a bulk product import.
+## 5. Core Domain Models
+* **Merchant:** Represents an independent seller.
+* **Product:** SKU-based items; unique per merchant.
+* **Collection:** Merchant-owned groups; contains thousands of products.
+* **Import:** Tracks progress and state of bulk CSV operations.
 
 ---
 
-## 5. Bulk Product Import System
+## 6. Bulk Product Import System
 
-### Key Requirements Addressed
-- Non-blocking imports
-- Real-time progress updates
-- Partial failure handling
-- Email notification on completion
-
-### Import Lifecycle
-1. Merchant uploads CSV
-2. Import record is created (status: pending)
-3. Background job is dispatched
-4. Job processes rows incrementally
-5. Progress is tracked in DB
-6. Status updated to completed or failed
-7. Email notification is sent
+### Key Features
+- ✔ Non-blocking processing
+- ✔ Real-time progress updates via polling
+- ✔ Partial failure handling (atomic row processing)
+- ✔ Queued email notifications upon completion
 
 ### Import Table Structure
-- id
-- merchant_id
-- file_path
-- status (pending | processing | completed | failed)
-- total_rows
-- processed_rows
-- failed_rows
-- timestamps
+- id | merchant_id | file_path | status (pending/processing/completed/failed)
+- total_rows | processed_rows | failed_rows | timestamps
 
 ---
 
-## 6. Background Job Design: ImportProductsJob
-Runs asynchronously using queues and processes CSV row-by-row.
+## 7. Background Job Design: ImportProductsJob
+The job iterates through CSV rows asynchronously to keep the platform responsive.
 
-**Design Decisions:**
-- Import ID passed to job, not full model (queue safety)
-- Repository resolved in job, not constructor
-- Row-level error isolation using transactions
-- Idempotent SKU-based upserts
+**Design Logic:**
+- Uses Row-level database transactions.
+- Increments progress counters in the DB for real-time tracking.
+- Idempotent SKU-based upserts to prevent duplicate data.
 
-**Example Tracking Logic:**
+Tracking Logic:
 $import->increment('processed_rows');
 $import->increment('failed_rows');
 
 ---
 
-## 7. Real-Time Progress Updates (Polling)
+## 8. Real-Time Progress Updates (Polling)
 
-| Reason | Explanation |
-| :--- | :--- |
-| **Simplicity** | No socket infra needed |
-| **Scalability** | Works across multiple servers |
-| **Reliability** | Stateless and cache-friendly |
+The system uses HTTP Polling instead of WebSockets for high scalability and lower infrastructure complexity.
 
 ### Progress API
 GET /api/imports/{id}
@@ -116,29 +135,16 @@ GET /api/imports/{id}
 
 ---
 
-## 8. Collection Management
-* Collections belong to merchants.
-* Many-to-many relationship with products.
-* Indexed pivot table for fast bulk operations.
-* **Bulk Operations:** Attach/detach products in batches using chunking to avoid memory spikes.
+## 9. Scaling Strategy
+* **Queue Workers:** Run dedicated workers for different queues:
+  php artisan queue:work --queue=imports
+  php artisan queue:work --queue=emails
+* **Database:** Composite indexes on (merchant_id, sku) for $O(1)$ lookups.
+* **Horizontal Scaling:** Stateless API design allows adding more nodes under a load balancer.
 
 ---
 
-## 9. Error Handling Strategy
-* **Invalid CSV row:** Skipped, logged, counted.
-* **Partial import failure:** Import continues.
-* **File missing:** Import marked failed.
-* **DB error:** Row rolled back only.
-* **Worker crash:** Import resumes safely via job retries.
-
----
-
-## 10. Scaling Strategy
-1. **Queue Workers:** Horizontal scaling with separate queues per workload.
-2. **Database:** Composite indexes (merchant_id, sku) and read replicas.
-3. **Application:** Stateless API servers and chunked DB operations.
-
----
-
-## 11. Summary
-This backend is a production-ready foundation for large-scale e-commerce operations, emphasizing reliability and clean architecture.
+## 10. Error Handling
+* **Invalid Rows:** Skipped and logged; the rest of the import continues.
+* **Database Deadlocks:** Handled via transaction retries in the Repository.
+* **Worker Crashes:** Jobs remain in the queue or are marked as failed for manual restart.
