@@ -149,6 +149,8 @@ GET /api/imports/{id}
 * **Database Deadlocks:** Handled via transaction retries in the Repository.
 * **Worker Crashes:** Jobs remain in the queue or are marked as failed for manual restart.
 
+---
+
 ## 11. Collections (Partial Implementation)
 
 ⚠️ **Note**: Due to time constraints, the collection management module is only partially implemented. Currently:
