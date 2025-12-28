@@ -27,8 +27,19 @@ class ProductController extends Controller
         );
     }
 
-    public function show(Import $import)
+    public function importStatus(Import $import)
     {
-        return ApiResponse::success($import);
+        $data = [
+            'id' => $import->id,
+            'status' => $import->status,
+            'processed_rows' => $import->processed_rows,
+            'failed_rows' => $import->failed_rows,
+            'total_rows' => $import->total_rows ?? null, // if tracked
+            'progress' => $import->total_rows
+                ? round(($import->processed_rows / $import->total_rows) * 100)
+                : null,
+        ];
+
+        return ApiResponse::success($data);
     }
 }
